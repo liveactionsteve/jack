@@ -34,8 +34,12 @@ func writeBoot() {
 	write("D=A")
 	write("@SP")
 	write("M=D")
-	write("@Sys.init")
-	write("D;JMP")
+	callSysInit := command{
+		function: "Boot",
+		arg1:     "Sys.init",
+		arg2:     "0",
+	}
+	writeCall(callSysInit)
 }
 
 func pushAddressAt(address string) {
@@ -81,41 +85,43 @@ func writeFunction(cmd command) {
 }
 
 func writeReturn(cmd command) {
-	// FRAME = R13 holds address in LCL
+	write("//FRAME = LCL")
 	write("@LCL")
 	write("D=M")
 	write("@R13")
 	write("M=D")
-	// RET = R14 holds value of return address
+	write("// RET = *(FRAME - 5)")
 	write("@5")
 	write("A=D-A")
 	write("D=M") // D holds MEM[FRAME-5]; return address
 	write("@R14")
-	write("M=D")       // R14 holds return address
+	write("M=D") // R14 holds return address
+	write("// *ARG = pop()")
 	popIntoDRegister() // returned value into D
 	write("@ARG")
 	write("A=M")
 	write("M=D") // store returned value at *ARG
-	write("D=A+1")
+	write("// SP = ARG+1")
+	write("@ARG")
+	write("D=M+1")
 	write("@SP")
 	write("M=D")
 	decrementR13AndRestoreAddressIn("THAT")
 	decrementR13AndRestoreAddressIn("THIS")
 	decrementR13AndRestoreAddressIn("ARG")
 	decrementR13AndRestoreAddressIn("LCL")
+	write("// goto RET")
 	write("@R14")
 	write("A=M")
 	write("D;JMP")
 }
 
 func decrementR13AndRestoreAddressIn(regName string) {
+	write("// decrement R13 and store %s at that location", regName)
 	// decrement R13
 	write("@R13")
-	write("D=M-1") // D is address FRAME-1
-	write("@R13")
-	write("M=D")
+	write("AM=M-1")
 	// THAT = *R13
-	write("A=M")
 	write("D=M")
 	write("@%s", regName)
 	write("M=D")
@@ -168,14 +174,12 @@ func writePushOrPop(cmd command) {
 			write("D=M")   // D holds value we want to push
 			pushDRegister()
 		}
-	case "static", "temp", "pointer":
+	case "temp", "pointer":
 		offset, err := strconv.Atoi(cmd.arg2)
 		if err != nil {
 			panic(err)
 		}
-		if cmd.arg1 == "static" {
-			offset += 16
-		} else if cmd.arg1 == "temp" {
+		if cmd.arg1 == "temp" {
 			offset += 5
 		} else if cmd.arg1 == "pointer" {
 			offset += 3
@@ -190,9 +194,18 @@ func writePushOrPop(cmd command) {
 			write("D=M")
 			pushDRegister()
 		}
-	}
-	if cmd.ctype == C_PUSH {
-	} else {
+	case "static":
+		write("// steve was here")
+		label := cmd.module + "." + cmd.arg2
+		if cmd.ctype == C_POP {
+			popIntoDRegister()
+			write("@%s", label)
+			write("M=D")
+		} else {
+			write("@%s", label)
+			write("D=M")
+			pushDRegister()
+		}
 	}
 }
 
@@ -259,7 +272,7 @@ func write(format string, a ...interface{}) {
 }
 
 func popIntoDRegister() {
-	write("@SP")    // A=2, so M will be RAM[2]
+	write("@SP")    // A=0, so M will be RAM[0]
 	write("AM=M-1") // decrement value in RAM[2] and store it in RAM[2] and A register
 	// now A register is address of value to be popped
 	write("D=M") // so now the value at that address is pulled into D

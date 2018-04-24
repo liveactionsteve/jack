@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"jack"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -23,12 +24,14 @@ const (
 
 type command struct {
 	ctype    int
+	module   string
 	function string
 	command  string
 	arg1     string
 	arg2     string
 }
 
+var currentModule string
 var currentFunction string
 var asmFile io.Writer
 
@@ -36,6 +39,7 @@ func ParseFiles(filenames []string, output io.Writer) {
 	asmFile = output
 	writeBoot()
 	for _, filename := range filenames {
+		currentModule = moduleName(filename)
 		parseFile(filename)
 	}
 }
@@ -49,6 +53,7 @@ func parseFile(filename string) {
 func parseCommand(line string) (cmd command, err error) {
 	cmd = command{}
 	cmd.function = currentFunction
+	cmd.module = currentModule
 	var command, rest string
 	command, rest = nextWord(line)
 	command = strings.ToLower(command)
@@ -175,4 +180,9 @@ func processLine(line string, lineno int, origLine string) error {
 	write("// %s", origLine)
 	writeCode(cmd)
 	return nil
+}
+
+func moduleName(filename string) string {
+	base := filepath.Base(filename)
+	return base[0 : len(base)-3]
 }
