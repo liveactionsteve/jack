@@ -1,0 +1,74 @@
+package main
+
+import (
+	"fmt"
+	"jack"
+	"jack/VMtranslator/parser"
+	"os"
+)
+
+func printErrorAndExit(err interface{}) {
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(1)
+}
+
+func main() {
+	if len(os.Args) != 2 {
+		printErrorAndExit("Usage: VMtranslator <vm file or directory>")
+	}
+	basename, filenames, err := jack.Resolve(os.Args[1], ".vm")
+	if err != nil {
+		printErrorAndExit(err)
+	}
+<<<<<<< Updated upstream
+	asmFilename := basename + ".asm"
+=======
+
+	// check file or directory exists
+	fileinfo, err := os.Stat(path)
+	if err != nil {
+		printErrorAndExit(err)
+	}
+
+	var dirpath string
+	var filenames []string
+	var asmFilename string
+	var needBoot bool = false
+
+	if fileinfo.IsDir() {
+		// parse all .vm files in directory
+		needBoot = true
+		dirpath = path
+		asmFilename = filepath.Base(path) + ".asm"
+		dir, err := os.Open(path)
+		if err != nil {
+			printErrorAndExit(err)
+		}
+		allnames, err := dir.Readdirnames(0)
+		if err != nil {
+			printErrorAndExit(err)
+		}
+		for _, fname := range allnames {
+			if strings.HasSuffix(fname, ".vm") {
+				filenames = append(filenames, filepath.Join(dirpath, fname))
+			}
+		}
+	} else {
+		if !strings.HasSuffix(path, ".vm") {
+			printErrorAndExit("File type must be .vm ")
+		}
+		dirpath = filepath.Dir(path)
+		base := filepath.Base(path)
+		filenames = []string{filepath.Join(dirpath, base)}
+		asmFilename = base[0:len(base)-3] + ".asm"
+	}
+	asmFilename = filepath.Join(dirpath, asmFilename)
+>>>>>>> Stashed changes
+	asmFile, err := os.Create(asmFilename)
+	if err != nil {
+		printErrorAndExit(err)
+	}
+	defer asmFile.Close()
+	parser.SetWriter(asmFile)
+	parser.ParseFiles(filenames, needBoot)
+}

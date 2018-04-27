@@ -24,11 +24,13 @@ func Resolve(path string, filetype string) (basename string, filenames []string,
 		// get all files with specified file type
 		dirpath = path
 		basename = filepath.Base(path)
-		dir, err := os.Open(path)
+		var dir *os.File
+		dir, err = os.Open(path)
 		if err != nil {
 			return
 		}
-		allnames, err := dir.Readdirnames(0)
+		var allnames []string
+		allnames, err = dir.Readdirnames(0)
 		if err != nil {
 			return
 		}
@@ -48,4 +50,5 @@ func Resolve(path string, filetype string) (basename string, filenames []string,
 		basename = base[0 : len(base)-len(filetype)]
 		basename = filepath.Join(dirpath, basename)
 	}
+	return
 }

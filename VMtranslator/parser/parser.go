@@ -35,9 +35,14 @@ var currentModule string
 var currentFunction string
 var asmFile io.Writer
 
-func ParseFiles(filenames []string, output io.Writer) {
+func SetWriter(output io.Writer) {
 	asmFile = output
-	writeBoot()
+}
+
+func ParseFiles(filenames []string, needBoot bool) {
+	if needBoot {
+		writeBoot()
+	}
 	for _, filename := range filenames {
 		currentModule = moduleName(filename)
 		parseFile(filename)

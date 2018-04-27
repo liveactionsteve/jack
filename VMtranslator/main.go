@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"jack"
 	"jack/VMtranslator/parser"
@@ -12,11 +13,17 @@ func printErrorAndExit(err interface{}) {
 	os.Exit(1)
 }
 
+//func BoolVar(p *bool, name string, value bool, usage string)
+
 func main() {
-	if len(os.Args) != 2 {
+	var noBoot bool
+	flag.BoolVar(&noBoot, "noboot", false, "do not add boot code")
+	flag.Parse()
+	arg := flag.Arg(0)
+	if len(flag.Args()) != 1 {
 		printErrorAndExit("Usage: VMtranslator <vm file or directory>")
 	}
-	basename, filenames, err := jack.Resolve(os.Args[1], ".vm")
+	basename, filenames, err := jack.Resolve(arg, ".vm")
 	if err != nil {
 		printErrorAndExit(err)
 	}
@@ -26,5 +33,6 @@ func main() {
 		printErrorAndExit(err)
 	}
 	defer asmFile.Close()
-	parser.ParseFiles(filenames, asmFile)
+	parser.SetWriter(asmFile)
+	parser.ParseFiles(filenames, !noBoot)
 }
