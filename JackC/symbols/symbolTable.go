@@ -12,10 +12,10 @@ const (
 )
 
 var symbolKindStrings []string = []string{
-	"STATIC",
-	"FIELD",
-	"ARGUMENT",
-	"VAR",
+	"static",
+	"field",
+	"argument",
+	"var",
 }
 
 func (sk SymbolKind) String() string {
@@ -54,6 +54,8 @@ type Symbol struct {
 	typeOf SymbolType
 	index  int
 }
+
+var noSymbol Symbol = Symbol{index: -1}
 
 type SymbolTable struct {
 	Name string
@@ -97,7 +99,7 @@ func (st SymbolTable) VarCount(symbolKind SymbolKind) int {
 
 func (st SymbolTable) define(name string, symbolType SymbolType, symbolKind SymbolKind) {
 	symbol := Symbol{kindOf: symbolKind, typeOf: symbolType, index: st.VarCount(symbolKind)}
-	// fmt.Printf("in table %s, defining %s, type:%v, kind:%v, index:%d\n", st.Name, name, symbol.typeOf, symbol.kindOf, symbol.index)
+	fmt.Printf("in table %s, defining %s, type:%v, kind:%v, index:%d\n", st.Name, name, symbol.typeOf, symbol.kindOf, symbol.index)
 	st.Map[name] = symbol
 }
 
@@ -111,8 +113,27 @@ func (st SymbolTable) Lookup(name string) Symbol {
 	if ok {
 		return symbol
 	} else {
-		panic(fmt.Sprintf("name %s not found in symbol table %s", name, st.Name))
+		return noSymbol
 	}
+}
+
+func (s Symbol) Access() string {
+	var segment string
+	switch s.kindOf {
+	case STATIC:
+		segment = "static"
+	case FIELD:
+		segment = "this"
+	case ARGUMENT:
+		segment = "argument"
+	case VAR:
+		segment = "local"
+	}
+	return fmt.Sprintf("%s %d", segment, s.index)
+}
+
+func (s Symbol) IncIndex() {
+	s.index++
 }
 
 func (s Symbol) String() string {
@@ -129,4 +150,12 @@ func (s Symbol) TypeOf() SymbolType {
 
 func (s Symbol) IndexOf() int {
 	return s.index
+}
+
+func (s Symbol) Exists() bool {
+	return s.index >= 0
+}
+
+func NoSymbol() Symbol {
+	return noSymbol
 }

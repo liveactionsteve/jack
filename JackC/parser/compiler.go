@@ -125,14 +125,14 @@ func compileFile(ch chan Token, filename string) {
 	inputC = ch
 	outDir := filepath.Dir(filename)
 	outputFile := filepath.Base(filename)
-	outputFile = outputFile[0:len(outputFile)-5] + "Steve.xml"
+	outputFile = outputFile[0:len(outputFile)-5] + ".vm"
 	outputFile = filepath.Join(outDir, outputFile)
 	writer, err := os.Create(outputFile)
 	if err != nil {
 		panic(err)
 	}
 	classTree := compileClass()
-	outputClass(classTree, writer)
+	outputJackVM(classTree, writer)
 }
 
 func errorOut(msg string) {
