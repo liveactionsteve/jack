@@ -2,20 +2,14 @@ package parser
 
 import (
 	"fmt"
-	"io"
 	"jack"
-	"path/filepath"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
 
-var writer io.Writer
-
-type Token struct {
-	tokenType string
-	value     string
-}
+var OutputC chan Token
+var filename string
 
 func isSymbol(ch rune) bool {
 	symbols := []rune{'{', '}', '(', ')', '[', ']', '.', ',', ';', '+', '-', '*', '/', '&', '|', '<', '>', '=', '~'}
@@ -28,7 +22,8 @@ func isSymbol(ch rune) bool {
 }
 
 func isKeyword(identifier string) bool {
-	keywords := []string{"class", "constructor", "function", "method", "field", "static", "var", "int", "char", "boolean", "void", "true", "false", "this", "let", "do", "if", "else", "while", "return"}
+	keywords := []string{"class", "constructor", "function", "method", "field", "static", "var", "int", "char",
+		"boolean", "void", "true", "false", "null", "this", "let", "do", "if", "else", "while", "return"}
 	for _, keyword := range keywords {
 		if identifier == keyword {
 			return true
@@ -40,8 +35,6 @@ func isKeyword(identifier string) bool {
 var inComment bool = false
 
 func tokenizeLine(line string, lineno int, origLine string) error {
-	var tokens []Token
-	var token Token
 	var endIdx int
 
 	for len(line) > 0 {
@@ -64,6 +57,7 @@ func tokenizeLine(line string, lineno int, origLine string) error {
 
 		firstRune, width := utf8.DecodeRuneInString(line)
 		var arune rune
+		var token Token
 		if isSymbol(firstRune) {
 			token = Token{tokenType: "symbol", value: line[0:1]}
 			line = line[1:]
@@ -73,7 +67,7 @@ func tokenizeLine(line string, lineno int, origLine string) error {
 			if endIdx < 0 {
 				return fmt.Errorf("no final quote found on line %d", lineno)
 			}
-			token = Token{tokenType: "stringConstant", value: line[0 : endIdx-1]}
+			token = Token{tokenType: "stringConstant", value: line[0:endIdx]}
 			line = line[endIdx+1:]
 		} else if unicode.IsDigit(firstRune) {
 			for endIdx, arune = range line {
@@ -101,28 +95,17 @@ func tokenizeLine(line string, lineno int, origLine string) error {
 			token = Token{tokenType: tokenType, value: value}
 			line = line[endIdx:]
 		}
-		tokens = append(tokens, token)
+		token.file = filename
+		token.lineno = lineno
+		OutputC <- token
 	}
-	for _, token = range tokens {
-		write("<%s> %s </%s>", token.tokenType, token.value, token.tokenType)
-	}
-	fmt.Printf("line %d, :%s:, tokens: %v\n", lineno, origLine, tokens)
 	return nil
 }
 
-func write(format string, a ...interface{}) {
-	outString := fmt.Sprintf(format, a...) + "\n"
-	io.WriteString(writer, outString)
-}
-
-func tokenizeFile(filename string) {
-	outputFile := filepath.Base(filename)
-	outputFile = outputFile[0:len(outputFile)-5] + "Steve.xml"
-
-}
-
 func TokenizeFiles(filenames []string) {
-	for _, filename := range filenames {
-		jack.ForLinesInFile(filename, tokenizeLine)
+	for _, filename = range filenames {
+		OutputC = make(chan Token)
+		go jack.ForLinesInFile(filename, tokenizeLine)
+		compileFile(OutputC, filename)
 	}
 }
