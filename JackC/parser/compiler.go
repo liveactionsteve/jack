@@ -192,6 +192,9 @@ func compileSubroutineDecs() []SubroutineDec {
 		symbolTable := symbols.NewSymbolTable(token.value)
 		subroutineDec.symbolTable = symbolTable
 		subroutineSymbolTable = symbolTable
+		if subroutineDec.ctrOrFuncOrMethod.value == "method" {
+			symbolTable.Define("this", classSymbolTable.Name, symbols.ARGUMENT)
+		}
 		getToken()
 		unless(token.value == "(", "Expected (")
 		getToken()

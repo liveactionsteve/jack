@@ -288,11 +288,6 @@ func (vw VmWriter) outputMethod(dec SubroutineDec) {
 	prt("// set 'this' pointer")
 	prt("push argument 0")
 	prt("pop pointer 0")
-	// adjust visible argument indexes, since argument 0 is 'this'
-	for _, parm := range dec.parameters {
-		symbol := vw.Lookup(parm.name.value)
-		symbol.IncIndex()
-	}
 	vw.outputStatements(dec.body.statements)
 }
 
