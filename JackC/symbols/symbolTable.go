@@ -44,7 +44,7 @@ var simpleTypeStrings []string = []string{
 
 func (st SymbolType) String() string {
 	if st.simpleType == CLASS {
-		return "class " + st.className
+		return st.className
 	}
 	return simpleTypeStrings[st.simpleType]
 }
@@ -99,7 +99,7 @@ func (st SymbolTable) VarCount(symbolKind SymbolKind) int {
 
 func (st SymbolTable) define(name string, symbolType SymbolType, symbolKind SymbolKind) {
 	symbol := Symbol{kindOf: symbolKind, typeOf: symbolType, index: st.VarCount(symbolKind)}
-	fmt.Printf("in table %s, defining %s, type:%v, kind:%v, index:%d\n", st.Name, name, symbol.typeOf, symbol.kindOf, symbol.index)
+	// fmt.Printf("in table %s, defining %s, type:%v, kind:%v, index:%d\n", st.Name, name, symbol.typeOf, symbol.kindOf, symbol.index)
 	st.Map[name] = symbol
 }
 

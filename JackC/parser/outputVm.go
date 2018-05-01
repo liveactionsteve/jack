@@ -10,9 +10,9 @@ import (
 type VmWriter struct {
 	writer             io.WriteCloser
 	classTree          ClassTree
-	labelNum           int
 	currentSymbolTable *symbols.SymbolTable
 	currentSubroutine  *SubroutineDec
+	labelGenerator     LabelGenerator
 }
 
 func (vw VmWriter) outputStaticVariables() {
@@ -43,13 +43,13 @@ func (vw VmWriter) outputFieldVariables() {
 	}
 }
 
-func (vw VmWriter) printSubroutineSymbols(symbolTable symbols.SymbolTable) {
+func (vw VmWriter) printSymbolTable(symbolTable symbols.SymbolTable) {
 	if len(symbolTable.Map) == 0 {
 		return
 	}
 	prt("//symbols")
 	for name, symbol := range symbolTable.Map {
-		prt("//  name:%s, type:%v, kind:%v, index:%d", name, symbol.TypeOf(), symbol.KindOf(), symbol.IndexOf)
+		prt("//  name:%s, type:%v, kind:%v, index:%d", name, symbol.TypeOf(), symbol.KindOf(), symbol.IndexOf())
 	}
 }
 
@@ -130,7 +130,7 @@ func (vw VmWriter) evaluateArrayAccessTerm(term ArrayAccessTerm) {
 	prt("push %s", symbol.Access())
 	vw.evaluateExpression(term.index)
 	prt("add")
-	prt("pop pointer 0")
+	prt("pop pointer 1")
 	prt("push that 0")
 }
 
@@ -170,11 +170,11 @@ func (vw VmWriter) outputLetStatement(statement LetStatement) {
 	var symbol symbols.Symbol
 	symbol = vw.Lookup(name)
 	if statement.isArray {
+		vw.evaluateExpression(statement.rhs)
 		prt("push %s", symbol.Access()) // push address of array
 		vw.evaluateExpression(statement.indexExpression)
 		prt("add")
-		prt("push pointer 1")
-		vw.evaluateExpression(statement.rhs)
+		prt("pop pointer 1")
 		prt("pop that 0")
 	} else {
 		vw.evaluateExpression(statement.rhs)
@@ -184,13 +184,13 @@ func (vw VmWriter) outputLetStatement(statement LetStatement) {
 }
 
 func (vw VmWriter) outputIfStatement(statement IfStatement) {
-	l1 := vw.generateLabel()
+	l1 := vw.labelGenerator.generateLabel("IF")
 	vw.evaluateExpression(statement.condition)
 	prt("not")
 	prt("if-goto %s", l1) // skip to 'else' clause, if exists, otherwise skip to end of statement
 	vw.outputStatements(statement.thenClause)
 	if statement.isElse {
-		l2 := vw.generateLabel()
+		l2 := vw.labelGenerator.generateLabel("IF")
 		prt("goto %s", l2) // at end of 'then' clause, skip over the 'else' clause
 		prt("label %s", l1)
 		vw.outputStatements(statement.elseClause)
@@ -201,8 +201,8 @@ func (vw VmWriter) outputIfStatement(statement IfStatement) {
 }
 
 func (vw VmWriter) outputWhileStatement(statement WhileStatement) {
-	l1 := vw.generateLabel()
-	l2 := vw.generateLabel()
+	l1 := vw.labelGenerator.generateLabel("WHILE")
+	l2 := vw.labelGenerator.generateLabel("WHILE")
 	prt("label %s", l1)
 	vw.evaluateExpression(statement.condition)
 	prt("not")
@@ -236,11 +236,12 @@ func (vw VmWriter) outputReturnStatement(statement ReturnStatement) {
 }
 
 func (vw VmWriter) outputFunctionCall(call FunctionCall) {
+	prt("push pointer 0")
 	for i, argExp := range call.arguments {
 		prt("// push value of arg %d", i)
 		vw.evaluateExpression(argExp)
 	}
-	prt("call %s.%s %d", vw.classTree.className.value, call.functionName, len(call.arguments))
+	prt("call %s.%s %d", vw.classTree.className.value, call.functionName.value, len(call.arguments)+1)
 }
 
 func (vw VmWriter) outputMethodCall(call MethodCall) {
@@ -255,7 +256,7 @@ func (vw VmWriter) outputMethodCall(call MethodCall) {
 		vw.evaluateExpression(argExp)
 	}
 	if symbol.Exists() {
-		prt("call %s.%s %d", vw.classTree.className.value, call.methodName.value, len(call.arguments)+1)
+		prt("call %v.%s %d", symbol.TypeOf(), call.methodName.value, len(call.arguments)+1)
 	} else {
 		// calling function in some other class
 		prt("call %s.%s %d", call.classOrVarName.value, call.methodName.value, len(call.arguments))
@@ -300,10 +301,11 @@ func (vw VmWriter) outputFunction(dec SubroutineDec) {
 }
 
 func (vw VmWriter) outputConstructor(dec SubroutineDec) {
-	numFields := dec.symbolTable.VarCount(symbols.FIELD)
-	prt("call Memory.alloc(%d)", numFields)
+	numFields := vw.classTree.symbolTable.VarCount(symbols.FIELD)
+	prt("push constant %d", numFields)
+	prt("call Memory.alloc 1")
 	prt("pop pointer 0")
-
+	vw.outputStatements(dec.body.statements)
 }
 
 func (vw VmWriter) outputSubroutine(dec SubroutineDec) {
@@ -314,7 +316,7 @@ func (vw VmWriter) outputSubroutine(dec SubroutineDec) {
 	prt("function %s %d", name, numLocalVariables)
 	prt("//type of subroutine: %s", dec.ctrOrFuncOrMethod.value)
 	prt("//returns %s", dec.returnType.value)
-	vw.printSubroutineSymbols(dec.symbolTable)
+	vw.printSymbolTable(dec.symbolTable)
 	switch dec.ctrOrFuncOrMethod.value {
 	case "method":
 		vw.outputMethod(dec)
@@ -327,7 +329,6 @@ func (vw VmWriter) outputSubroutine(dec SubroutineDec) {
 }
 
 func (vw VmWriter) outputSubroutines() {
-	prt("subroutines")
 	for _, dec := range vw.classTree.subroutineDecs {
 		vw.outputSubroutine(dec)
 	}
@@ -335,15 +336,11 @@ func (vw VmWriter) outputSubroutines() {
 
 func outputJackVM(tree ClassTree, wrt io.WriteCloser) {
 	vw := VmWriter{writer: wrt, classTree: tree}
+	vw.labelGenerator = newLabelGenerator()
 	setPrtOutput(wrt)
 	vw.outputStaticVariables()
 	vw.outputFieldVariables()
 	vw.outputSubroutines()
-}
-
-func (vw VmWriter) generateLabel() string {
-	vw.labelNum++
-	return fmt.Sprintf("L%d", vw.labelNum)
 }
 
 func (vw VmWriter) Lookup(name string) symbols.Symbol {

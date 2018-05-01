@@ -184,7 +184,7 @@ func compileSubroutineDecs() []SubroutineDec {
 	for token.value == "constructor" || token.value == "function" || token.value == "method" {
 		subroutineDec := SubroutineDec{ctrOrFuncOrMethod: token}
 		getToken()
-		unless(token.value == "void" || token.tokenType == "identifier", "Expected 'void' or identifier")
+		unless(token.value == "void" || IsType(), "Expected 'void' or identifier")
 		subroutineDec.returnType = token
 		getToken()
 		unlessIdentifier("Expected subroutine name")
